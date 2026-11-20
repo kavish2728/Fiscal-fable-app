@@ -23,7 +23,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Install Android SDK packages
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
       - name: Set up Gradle
@@ -31,20 +34,19 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Extract Android project
+      - name: Extract project
         run: |
           unzip -q Fiscal-Fable-APK-Build-Ready.zip -d project
 
       - name: Build APK
         run: |
-          cd project/fiscal-fable-build
+          cd project
           gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Fiscal-Fable-APK
-          path: project/fiscal-fable-build/app/build/outputs/apk/debug/app-debug.apk
+          path: project/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
-          
