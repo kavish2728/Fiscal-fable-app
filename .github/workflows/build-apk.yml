@@ -27,30 +27,75 @@ jobs:
           packages: 'platform-tools'
 
       - name: Install Android SDK packages
+        shell: bash
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" \
+            -type f -name sdkmanager | head -n 1)
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found"
+            exit 1
+          fi
+
+          yes | "$SDKMANAGER" --licenses || true
+
+          "$SDKMANAGER" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "platform-tools"
 
       - name: Extract project
+        shell: bash
         run: |
           mkdir -p project
           unzip -q Fiscal-Fable-APK-Build-Ready.zip -d project
 
-      - name: Verify project
+      - name: Locate Android project
+        shell: bash
         run: |
-          ls -la project/fiscal-fable-build
-          test -f project/fiscal-fable-build/gradlew
+          PROJECT_DIR=$(find project -name settings.gradle.kts \
+            -type f -print -quit | xargs dirname)
 
-      - name: Build APK
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "Android project not found"
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Found project at: $PROJECT_DIR"
+
+          ls -la "$PROJECT_DIR"
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Build Fiscal Fable APK
+        shell: bash
         run: |
-          cd project/fiscal-fable-build
-          chmod +x gradlew
-          ./gradlew assembleDebug
+          cd "$PROJECT_DIR"
+          gradle assembleDebug --no-daemon
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          APK=$(find "$PROJECT_DIR/app/build/outputs/apk/debug" \
+            -name "*.apk" -type f -print -quit)
+
+          if [ -z "$APK" ]; then
+            echo "APK was not generated"
+            exit 1
+          fi
+
+          echo "APK successfully generated:"
+          ls -lh "$APK"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Fiscal-Fable-APK
-          path: project/fiscal-fable-build/app/build/outputs/apk/debug/app-debug.apk
+          path: project/**/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
           
